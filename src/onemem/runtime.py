@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .consolidator import SimpleConsolidator
+from .embedding_providers import EmbeddingProvider
 from .index import SidecarIndex
 from .markdown_store import MarkdownStore
 from .models import MemoryNode, utc_now
@@ -11,9 +12,9 @@ from .text import stable_hash, title_from_body
 
 
 class MemoryRuntime:
-    def __init__(self, root: Path | str = "memory") -> None:
+    def __init__(self, root: Path | str = "memory", embedding_provider: EmbeddingProvider | None = None) -> None:
         self.store = MarkdownStore(root)
-        self.index = SidecarIndex(Path(root) / ".sidecar" / "index.sqlite3")
+        self.index = SidecarIndex(Path(root) / ".sidecar" / "index.sqlite3", embedding_provider=embedding_provider)
 
     def init(self) -> None:
         self.store.ensure()

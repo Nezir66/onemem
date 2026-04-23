@@ -46,6 +46,47 @@ class EvalRunnerTest(unittest.TestCase):
             self.assertFalse(report.passed)
             self.assertIn("FAIL", format_report(report))
 
+    def test_scores_evidence_refs_independently_from_answer_text(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "evidence.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "cases": [
+                            {
+                                "name": "evidence",
+                                "episodes": [
+                                    {
+                                        "text": "The workshop was on Monday. The team meeting was the next Monday.",
+                                        "source": "benchmark:q1:s1",
+                                        "session": "q1",
+                                    }
+                                ],
+                                "queries": [
+                                    {
+                                        "query": "How many days before the team meeting was the workshop?",
+                                        "must_contain": ["7 days"],
+                                        "expected_source_refs": ["benchmark:q1:s1"],
+                                        "score": "evidence",
+                                        "top_k": 3,
+                                    }
+                                ],
+                                "check_rebuild": True,
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            report = EvalRunner().run_file(path)
+            query = report.cases[0].queries[0]
+
+            self.assertTrue(report.passed, format_report(report))
+            self.assertIsNone(query.rank)
+            self.assertEqual(query.evidence_rank, 1)
+            self.assertEqual(query.missing, ["7 days"])
+
 
 if __name__ == "__main__":
     unittest.main()

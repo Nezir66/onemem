@@ -20,6 +20,7 @@ class RankedMemory:
     score: float
     source_refs: list[str]
     concept_refs: list[str]
+    debug: dict[str, float | bool] | None = None
 
 
 @dataclass(slots=True)
@@ -27,14 +28,15 @@ class RetrievalResult:
     query: str
     memories: list[RankedMemory]
 
-    def context(self) -> str:
+    def context(self, *, include_debug: bool = False) -> str:
         lines: list[str] = []
         for memory in self.memories:
             concepts = ", ".join(memory.concept_refs) or "none"
-            lines.append(
-                f"[{memory.kind}:{memory.status}:{memory.id} | score={memory.score:.3f} | concepts={concepts}]\n"
-                f"{memory.body}"
-            )
+            header = f"[{memory.kind}:{memory.status}:{memory.id} | score={memory.score:.3f} | concepts={concepts}]"
+            if include_debug and memory.debug:
+                debug = ", ".join(f"{key}={value}" for key, value in memory.debug.items())
+                header = f"{header}\n  debug: {debug}"
+            lines.append(f"{header}\n{memory.body}")
         return "\n\n".join(lines)
 
 
@@ -43,36 +45,37 @@ class RetrievalOrchestrator:
         self.index = index
 
     def retrieve(self, query: str, *, limit: int = 8, include_hypotheses: bool = False) -> RetrievalResult:
-        candidates: dict[str, tuple[sqlite3.Row, float, float]] = {}
+        candidates: dict[str, tuple[sqlite3.Row, float, float, float]] = {}
 
         for row in self.index.fts_search(self._fts_query(query), limit=30):
-            candidates[row["id"]] = (row, max(0.0, -float(row["lexical_score"])), 0.0)
+            candidates[row["id"]] = (row, max(0.0, -float(row["lexical_score"])), 0.0, 0.0)
 
         for row, vector_score in self.index.vector_search(query, limit=30):
-            old = candidates.get(row["id"], (row, 0.0, 0.0))
-            candidates[row["id"]] = (row, old[1], max(old[2], vector_score))
+            old = candidates.get(row["id"], (row, 0.0, 0.0, 0.0))
+            candidates[row["id"]] = (row, old[1], max(old[2], vector_score), old[3])
 
         seed_ids = list(candidates.keys())[:12]
         neighbor_ids = self.index.graph_neighbors(seed_ids, hops=2)
         for row in self.index.get_rows(neighbor_ids):
-            old = candidates.get(row["id"], (row, 0.0, 0.0))
-            candidates[row["id"]] = (row, old[1], max(old[2], 0.08))
+            old = candidates.get(row["id"], (row, 0.0, 0.0, 0.0))
+            candidates[row["id"]] = (row, old[1], old[2], max(old[3], 0.08))
 
         ranked = [
-            self._rank(row, lexical_score, vector_score)
-            for row, lexical_score, vector_score in candidates.values()
+            self._rank(row, lexical_score, vector_score, graph_boost)
+            for row, lexical_score, vector_score, graph_boost in candidates.values()
             if self._is_retrievable(row, include_hypotheses)
         ]
         ranked.sort(key=lambda item: (self._kind_budget_rank(item.kind), item.score), reverse=True)
         return RetrievalResult(query=query, memories=self._apply_type_budget(ranked, limit))
 
-    def _rank(self, row: sqlite3.Row, lexical_score: float, vector_score: float) -> RankedMemory:
+    def _rank(self, row: sqlite3.Row, lexical_score: float, vector_score: float, graph_boost: float) -> RankedMemory:
         confidence = float(row["confidence"])
         salience = float(row["salience"])
         recency = self._recency_score(row["updated_at"])
         pinned = 0.12 if row["pinned"] else 0.0
+        semantic_score = max(vector_score, graph_boost)
         score = (
-            vector_score * 0.38
+            semantic_score * 0.38
             + min(1.0, lexical_score) * 0.22
             + salience * 0.18
             + confidence * 0.14
@@ -88,6 +91,15 @@ class RetrievalOrchestrator:
             score=round(score, 6),
             source_refs=json.loads(row["source_refs"]),
             concept_refs=json.loads(row["concept_refs"]),
+            debug={
+                "lexical_score": round(min(1.0, lexical_score), 6),
+                "vector_score": round(vector_score, 6),
+                "graph_boost": round(graph_boost, 6),
+                "salience": round(salience, 6),
+                "confidence": round(confidence, 6),
+                "recency": round(recency, 6),
+                "pinned": bool(row["pinned"]),
+            },
         )
 
     def _is_retrievable(self, row: sqlite3.Row, include_hypotheses: bool) -> bool:

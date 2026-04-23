@@ -21,6 +21,7 @@ dependencies = []
 [project.optional-dependencies]
 dev = ["build>=1.2", "twine>=5.0"]
 openai = ["openai>=1.0"]
+google = ["google-genai>=1.0"]
 server = ["fastapi>=0.110", "uvicorn>=0.27"]
 
 [project.scripts]

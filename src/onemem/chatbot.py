@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from .runtime import MemoryRuntime
+from .write_policy import MemoryWritePolicy
 
 
 class ChatClient(Protocol):
@@ -60,11 +61,13 @@ class MemoryChatbot:
         *,
         memory_limit: int = 8,
         auto_flush: bool = True,
+        write_policy: MemoryWritePolicy | None = None,
     ) -> None:
         self.runtime = runtime
         self.client = client
         self.memory_limit = memory_limit
         self.auto_flush = auto_flush
+        self.write_policy = write_policy or MemoryWritePolicy()
         self.history: list[tuple[str, str]] = []
 
     def ask(self, user_message: str) -> str:
@@ -73,13 +76,15 @@ class MemoryChatbot:
         answer = self.client.complete(prompt).strip()
         self.history.append(("user", user_message))
         self.history.append(("assistant", answer))
-        self.runtime.capture(
-            f"User asked: {user_message}\nAssistant answered: {answer}",
-            source="chatbot",
-            session="chat",
-            salience=0.55,
-        )
-        if self.auto_flush:
+        decision = self.write_policy.evaluate(user_message, answer)
+        if decision.capture:
+            self.runtime.capture(
+                f"User asked: {user_message}\nAssistant answered: {answer}\nWrite reason: {decision.reason}",
+                source="chatbot",
+                session="chat",
+                salience=decision.salience,
+            )
+        if decision.capture and self.auto_flush:
             self.runtime.flush()
         return answer
 
@@ -113,4 +118,3 @@ def extract_output_text(data: dict) -> str:
     if parts:
         return "\n".join(parts)
     raise RuntimeError("OpenAI response did not contain text output")
-

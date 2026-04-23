@@ -47,9 +47,13 @@ class LongMemEvalImportTest(unittest.TestCase):
             self.assertEqual(imported["cases"][0]["name"], "q1")
             self.assertEqual(imported["cases"][0]["queries"][0]["top_k"], 7)
             self.assertEqual(imported["cases"][0]["queries"][0]["must_contain"], ["short technical answers"])
+            self.assertEqual(imported["cases"][0]["queries"][0]["score"], "evidence")
+            self.assertEqual(
+                imported["cases"][0]["queries"][0]["expected_source_refs"],
+                ["longmemeval:q1:s1"],
+            )
             self.assertIn("user: Nezir prefers short technical answers.", imported["cases"][0]["episodes"][0]["text"])
 
 
 if __name__ == "__main__":
     unittest.main()
-

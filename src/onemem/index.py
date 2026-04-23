@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from pathlib import Path
 
-from .embeddings import cosine, embed
+from .embedding_providers import EmbeddingProvider, provider_from_env
+from .embeddings import cosine
 from .markdown_store import MarkdownStore
 from .models import MemoryNode
 
 
 class SidecarIndex:
-    def __init__(self, db_path: Path | str) -> None:
+    def __init__(self, db_path: Path | str, embedding_provider: EmbeddingProvider | None = None) -> None:
         self.db_path = Path(db_path)
+        self.embedding_provider = embedding_provider or provider_from_env()
 
     def connect(self) -> sqlite3.Connection:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -54,7 +57,31 @@ class SidecarIndex:
                     alias TEXT PRIMARY KEY,
                     node_id TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS metadata (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS embedding_cache (
+                    cache_key TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    dimensions INTEGER NOT NULL,
+                    text_hash TEXT NOT NULL,
+                    embedding TEXT NOT NULL
+                );
                 """
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+                ("embedding_provider", self.embedding_provider.name),
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+                ("embedding_model", self.embedding_provider.model),
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)",
+                ("embedding_dimensions", str(self.embedding_provider.dimensions)),
             )
 
     def rebuild(self, store: MarkdownStore) -> None:
@@ -98,7 +125,7 @@ class SidecarIndex:
                 json.dumps(node.source_refs),
                 json.dumps(node.concept_refs),
                 int(node.archived),
-                json.dumps(embed(body_for_embedding)),
+                json.dumps(self._embedding_for_text(conn, body_for_embedding)),
             ),
         )
         conn.execute("DELETE FROM fts_nodes WHERE id = ?", (node.id,))
@@ -141,9 +168,9 @@ class SidecarIndex:
 
     def vector_search(self, query: str, limit: int = 20) -> list[tuple[sqlite3.Row, float]]:
         self.init()
-        query_vector = embed(query)
         scored: list[tuple[sqlite3.Row, float]] = []
         with self.connect() as conn:
+            query_vector = self._embedding_for_text(conn, query)
             for row in conn.execute("SELECT * FROM nodes WHERE archived = 0"):
                 score = cosine(query_vector, json.loads(row["embedding"]))
                 if score > 0:
@@ -184,3 +211,33 @@ class SidecarIndex:
         with self.connect() as conn:
             return list(conn.execute(f"SELECT * FROM nodes WHERE id IN ({placeholders})", tuple(node_ids)))
 
+    def _embedding_for_text(self, conn: sqlite3.Connection, text: str) -> list[float]:
+        text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        cache_key = ":".join(
+            [
+                self.embedding_provider.name,
+                self.embedding_provider.model,
+                str(self.embedding_provider.dimensions),
+                text_hash,
+            ]
+        )
+        cached = conn.execute("SELECT embedding FROM embedding_cache WHERE cache_key = ?", (cache_key,)).fetchone()
+        if cached:
+            return json.loads(cached["embedding"])
+        vector = self.embedding_provider.embed(text)
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO embedding_cache
+            (cache_key, provider, model, dimensions, text_hash, embedding)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                cache_key,
+                self.embedding_provider.name,
+                self.embedding_provider.model,
+                self.embedding_provider.dimensions,
+                text_hash,
+                json.dumps(vector),
+            ),
+        )
+        return vector

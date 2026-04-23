@@ -8,6 +8,7 @@ import onemem
 from onemem.chatbot import MemoryChatbot, build_prompt, extract_output_text
 from onemem.markdown_store import MarkdownStore
 from onemem.runtime import MemoryRuntime
+from onemem.write_policy import MemoryWritePolicy
 
 
 class FakeChatClient:
@@ -23,6 +24,7 @@ class MemoryFlowTest(unittest.TestCase):
     def test_public_package_api_exports_runtime(self) -> None:
         self.assertIs(onemem.MemoryRuntime, MemoryRuntime)
         self.assertTrue(hasattr(onemem, "MemoryChatbot"))
+        self.assertTrue(hasattr(onemem, "MemoryWritePolicy"))
 
     def test_capture_flush_retrieve_end_to_end(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -51,6 +53,7 @@ class MemoryFlowTest(unittest.TestCase):
             self.assertIn("Nora prefers concise technical summaries", context)
             self.assertTrue(any(memory.kind == "fact" for memory in result.memories))
             self.assertTrue(any("onemem" in memory.concept_refs for memory in result.memories))
+            self.assertIn("vector_score", result.memories[0].debug)
 
     def test_sidecar_rebuilds_from_canonical_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -101,7 +104,26 @@ class MemoryFlowTest(unittest.TestCase):
             self.assertEqual(nodes[0].kind, "episode")
             self.assertIn("readable Markdown", nodes[0].body)
 
-    def test_chatbot_retrieves_memory_and_captures_turn(self) -> None:
+    def test_concepts_prefer_topic_labels_over_stopwords(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = MemoryRuntime(Path(tmp) / "memory")
+            runtime.init()
+            runtime.capture(
+                "Mein Name ist Nezir und ich bevorzuge kurze technische Antworten.",
+                source="test",
+                session="profile",
+            )
+            runtime.flush()
+
+            concept_titles = {node.title for node in runtime.store.nodes_by_kind("concept")}
+            fact = runtime.store.nodes_by_kind("fact")[0]
+
+            self.assertIn("user_profile", concept_titles)
+            self.assertIn("answer_style", concept_titles)
+            self.assertNotIn("mein", concept_titles)
+            self.assertIn("answer_style", fact.concept_refs)
+
+    def test_chatbot_retrieves_memory_and_captures_explicit_memory_turn(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             runtime = MemoryRuntime(Path(tmp) / "memory")
             runtime.init()
@@ -110,13 +132,31 @@ class MemoryFlowTest(unittest.TestCase):
             client = FakeChatClient()
             bot = MemoryChatbot(runtime, client, auto_flush=False)
 
-            answer = bot.ask("What should you remember about Nora?")
+            answer = bot.ask("Remember that Nora prefers concise summaries.")
 
             self.assertIn("Nora", client.prompts[0])
             self.assertIn("concise summaries", client.prompts[0])
             self.assertIn("I will remember", answer)
             episodes = runtime.store.nodes_by_kind("episode")
             self.assertTrue(any("Assistant answered" in episode.body for episode in episodes))
+
+    def test_chatbot_ignores_low_information_turns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = MemoryRuntime(Path(tmp) / "memory")
+            runtime.init()
+            client = FakeChatClient()
+            bot = MemoryChatbot(runtime, client, auto_flush=False)
+
+            bot.ask("ok")
+
+            self.assertEqual(runtime.store.nodes_by_kind("episode"), [])
+
+    def test_write_policy_detects_preferences_and_noise(self) -> None:
+        policy = MemoryWritePolicy()
+
+        self.assertTrue(policy.evaluate("Merk dir: ich mag kurze Antworten.", "").capture)
+        self.assertTrue(policy.evaluate("Mein Name ist Nezir.", "").capture)
+        self.assertFalse(policy.evaluate("Danke", "").capture)
 
     def test_openai_response_text_extraction(self) -> None:
         self.assertEqual(extract_output_text({"output_text": "hello"}), "hello")

@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .chatbot import MemoryChatbot, OpenAIResponsesClient
+from .env import load_default_env
 from .eval import EvalRunner, LongMemEvalImporter, format_report
 from .maintenance import MaintenanceWorker
 from .runtime import MemoryRuntime
@@ -30,6 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
     retrieve.add_argument("query")
     retrieve.add_argument("--limit", type=int, default=8)
     retrieve.add_argument("--json", action="store_true")
+    retrieve.add_argument("--debug", action="store_true", help="include ranking component details")
 
     maintain = sub.add_parser("maintain", help="run basic decay/archive maintenance")
     maintain.add_argument("--episode-ttl-days", type=int, default=30)
@@ -60,6 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_default_env()
     args = build_parser().parse_args(argv)
     runtime = MemoryRuntime(Path(args.root))
 
@@ -96,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             print(json.dumps([memory.__dict__ for memory in result.memories], indent=2, sort_keys=True))
         else:
-            print(result.context())
+            print(result.context(include_debug=args.debug))
         return 0
 
     if args.command == "maintain":

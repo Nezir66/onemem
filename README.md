@@ -12,6 +12,9 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -e .
 
+cp .env.example .env
+# edit .env if you want to use OpenAI chat or Gemini embeddings
+
 onemem init
 onemem capture "Nora prefers concise technical summaries for the OneMem project." --source manual --session onemem
 onemem flush
@@ -67,6 +70,45 @@ See `docs/INTEGRATION.md` for a fuller adapter example.
 - Retrieval: hybrid lexical/vector candidates, mild graph expansion, temporal/status filtering, and type-budgeted context packing.
 - Maintenance: `maintain` applies simple decay/archive rules and rebuilds the sidecar.
 - Invalidation: `invalidate` marks canonical nodes as `deprecated` with `valid_to` instead of deleting or overwriting them.
+- Chat memory write policy: the chatbot stores explicit memory requests, preferences, corrections, and substantial durable statements while ignoring obvious low-information turns.
+- Embedding providers: hash embeddings remain the offline default; Gemini embeddings can be enabled with environment variables.
+
+## Embedding Providers
+
+Default offline mode:
+
+```bash
+ONEMEM_EMBEDDING_PROVIDER=hash onemem rebuild-index
+```
+
+Gemini embedding mode:
+
+```bash
+export ONEMEM_EMBEDDING_PROVIDER=gemini
+export GEMINI_API_KEY="your_key"
+export ONEMEM_GEMINI_EMBEDDING_MODEL="gemini-embedding-001"
+export ONEMEM_EMBEDDING_DIMENSIONS=768
+
+onemem rebuild-index
+```
+
+Before changing Gemini model IDs, check the current official Google Gemini API or Vertex AI embedding docs. V2 keeps `hash` as the default so local tests and rebuilds do not require network access.
+
+## Environment File
+
+The CLI automatically loads `.env` from the current working directory. Existing shell environment variables win over values in `.env`.
+
+```bash
+cp .env.example .env
+```
+
+Example:
+
+```env
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-5.4-mini
+ONEMEM_EMBEDDING_PROVIDER=hash
+```
 
 ## Chatbot Test
 

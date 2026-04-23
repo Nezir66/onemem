@@ -40,6 +40,12 @@
           "must_contain": [
             "GPS system not functioning correctly"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_2655b836:answer_4be1b6b4_2",
+            "longmemeval:gpt4_2655b836:answer_4be1b6b4_3",
+            "longmemeval:gpt4_2655b836:answer_4be1b6b4_1"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -76,6 +82,11 @@
           "must_contain": [
             "'Data Analysis using Python' webinar"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_2487a7cb:answer_1c6b85ea_1",
+            "longmemeval:gpt4_2487a7cb:answer_1c6b85ea_2"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -112,6 +123,11 @@
           "must_contain": [
             "bike"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_76048e76:answer_b535969f_2",
+            "longmemeval:gpt4_76048e76:answer_b535969f_1"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -148,6 +164,11 @@
           "must_contain": [
             "Samsung Galaxy S22"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_2312f94c:answer_5328c3c2_1",
+            "longmemeval:gpt4_2312f94c:answer_5328c3c2_2"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -184,6 +205,11 @@
           "must_contain": [
             "7 days. 8 days (including the last day) is also acceptable."
           ],
+          "expected_source_refs": [
+            "longmemeval:0bb5a684:answer_e936197f_1",
+            "longmemeval:0bb5a684:answer_e936197f_2"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -220,6 +246,11 @@
           "must_contain": [
             "30 days. 31 days (including the last day) is also acceptable."
           ],
+          "expected_source_refs": [
+            "longmemeval:08f4fc43:answer_6ea1541e_2",
+            "longmemeval:08f4fc43:answer_6ea1541e_1"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -256,6 +287,11 @@
           "must_contain": [
             "14 days. 15 days (including the last day) is also acceptable."
           ],
+          "expected_source_refs": [
+            "longmemeval:2c63a862:answer_d39b7977_1",
+            "longmemeval:2c63a862:answer_d39b7977_2"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -292,6 +328,11 @@
           "must_contain": [
             "Tomatoes"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_385a5000:answer_7a4a93f1_2",
+            "longmemeval:gpt4_385a5000:answer_7a4a93f1_1"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -328,6 +369,11 @@
           "must_contain": [
             "21 days. 22 days (including the last day) is also acceptable."
           ],
+          "expected_source_refs": [
+            "longmemeval:2a1811e2:answer_1cc3cd0c_2",
+            "longmemeval:2a1811e2:answer_1cc3cd0c_1"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -364,6 +410,11 @@
           "must_contain": [
             "4 days."
           ],
+          "expected_source_refs": [
+            "longmemeval:bbf86515:answer_b3763b6b_1",
+            "longmemeval:bbf86515:answer_b3763b6b_2"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -421,6 +472,14 @@
           "must_contain": [
             "white Adidas sneakers"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_5dcc0aab:answer_099c1b6c_3",
+            "longmemeval:gpt4_5dcc0aab:answer_099c1b6c_1",
+            "longmemeval:gpt4_5dcc0aab:answer_099c1b6c_2",
+            "longmemeval:gpt4_5dcc0aab:answer_099c1b6c_4",
+            "longmemeval:gpt4_5dcc0aab:answer_099c1b6c_5"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -457,6 +516,11 @@
           "must_contain": [
             "The malfunction of the stand mixer"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_0b2f1d21:answer_c4e5d969_1",
+            "longmemeval:gpt4_0b2f1d21:answer_c4e5d969_2"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -493,6 +557,11 @@
           "must_contain": [
             "14 days. 8 days (including the last day) is also acceptable."
           ],
+          "expected_source_refs": [
+            "longmemeval:f0853d11:answer_932ea3bf_2",
+            "longmemeval:f0853d11:answer_932ea3bf_1"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -529,6 +598,11 @@
           "must_contain": [
             "Training pads for Luna"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_6ed717ea:answer_d50a8a33_2",
+            "longmemeval:gpt4_6ed717ea:answer_d50a8a33_1"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -565,6 +639,11 @@
           "must_contain": [
             "Fixing the fence"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_70e84552:answer_b3070ec4_1",
+            "longmemeval:gpt4_70e84552:answer_b3070ec4_2"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -629,6 +708,15 @@
           "must_contain": [
             "4"
           ],
+          "expected_source_refs": [
+            "longmemeval:a3838d2b:answer_4ffa04a2_1",
+            "longmemeval:a3838d2b:answer_4ffa04a2_6",
+            "longmemeval:a3838d2b:answer_4ffa04a2_5",
+            "longmemeval:a3838d2b:answer_4ffa04a2_4",
+            "longmemeval:a3838d2b:answer_4ffa04a2_2",
+            "longmemeval:a3838d2b:answer_4ffa04a2_3"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -665,6 +753,11 @@
           "must_contain": [
             "4 years and 9 months"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_93159ced:answer_e5131a1b_1",
+            "longmemeval:gpt4_93159ced:answer_e5131a1b_2"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -701,6 +794,11 @@
           "must_contain": [
             "'The Hate U Give'"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_2d58bcd6:answer_3e11e0ae_2",
+            "longmemeval:gpt4_2d58bcd6:answer_3e11e0ae_1"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -737,6 +835,11 @@
           "must_contain": [
             "Smart thermostat"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_65aabe59:answer_30dfe889_2",
+            "longmemeval:gpt4_65aabe59:answer_30dfe889_1"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -773,6 +876,11 @@
           "must_contain": [
             "Five months ago"
           ],
+          "expected_source_refs": [
+            "longmemeval:982b5123:answer_ab603dd5_2",
+            "longmemeval:982b5123:answer_ab603dd5_1"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -816,6 +924,12 @@
           "must_contain": [
             "5.5 weeks"
           ],
+          "expected_source_refs": [
+            "longmemeval:b9cfe692:answer_5e3bb940_1",
+            "longmemeval:b9cfe692:answer_5e3bb940_3",
+            "longmemeval:b9cfe692:answer_5e3bb940_2"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -852,6 +966,11 @@
           "must_contain": [
             "June 3rd"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_4edbafa2:answer_0a00c163_1",
+            "longmemeval:gpt4_4edbafa2:answer_0a00c163_2"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -888,6 +1007,11 @@
           "must_contain": [
             "7 days. 8 days (including the last day) is also acceptable."
           ],
+          "expected_source_refs": [
+            "longmemeval:c8090214:answer_70dc7d08_1",
+            "longmemeval:c8090214:answer_70dc7d08_2"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -924,6 +1048,11 @@
           "must_contain": [
             "'Game of Thrones'"
           ],
+          "expected_source_refs": [
+            "longmemeval:gpt4_483dd43c:answer_fb793c87_2",
+            "longmemeval:gpt4_483dd43c:answer_fb793c87_1"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],
@@ -960,6 +1089,11 @@
           "must_contain": [
             "Two weeks"
           ],
+          "expected_source_refs": [
+            "longmemeval:e4e14d04:answer_cf425855_2",
+            "longmemeval:e4e14d04:answer_cf425855_1"
+          ],
+          "score": "evidence",
           "top_k": 10
         }
       ],

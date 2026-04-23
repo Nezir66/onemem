@@ -4,7 +4,7 @@ from collections import Counter
 
 from .markdown_store import MarkdownStore
 from .models import MemoryNode, Relation, utc_now
-from .text import split_sentences, stable_hash, title_from_body, tokenize
+from .text import normalize_text, split_sentences, stable_hash, title_from_body, tokenize
 
 
 class ConsolidationResult:
@@ -37,9 +37,12 @@ class SimpleConsolidator:
 
     def _build_concepts(self, episodes: list[MemoryNode]) -> list[MemoryNode]:
         counter: Counter[str] = Counter()
+        labels: list[str] = []
         for episode in episodes:
             counter.update(tokenize(f"{episode.title} {episode.body}"))
-        concept_terms = [term for term, count in counter.most_common(8) if count >= 1]
+            labels.extend(self._session_labels(episode))
+            labels.extend(self._inferred_labels(episode.body))
+        concept_terms = self._unique([*labels, *[term for term, count in counter.most_common(12) if count >= 1]])[:8]
 
         concepts: list[MemoryNode] = []
         now = utc_now()
@@ -53,7 +56,7 @@ class SimpleConsolidator:
                     body=f"Concept anchor for memories related to `{term}`.",
                     status="stable",
                     confidence=0.8,
-                    salience=min(1.0, 0.45 + counter[term] * 0.08),
+                    salience=min(1.0, 0.6 if term in labels else 0.45 + counter[term] * 0.08),
                     created_at=self._existing_created_at(concept_id, now),
                     updated_at=now,
                     concept_refs=[term],
@@ -137,10 +140,43 @@ class SimpleConsolidator:
 
     def _match_concepts(self, sentence: str, concept_terms: list[str]) -> list[str]:
         tokens = set(tokenize(sentence))
-        matched = [term for term in concept_terms if term in tokens]
+        inferred = set(self._inferred_labels(sentence))
+        matched = [term for term in concept_terms if term in tokens or term in inferred]
         return matched[:5] or (concept_terms[:1] if concept_terms else ["uncategorized"])
 
     def _existing_created_at(self, node_id: str, fallback: str) -> str:
         existing = self.store.get(node_id)
         return existing.created_at if existing else fallback
 
+    def _session_labels(self, episode: MemoryNode) -> list[str]:
+        return [
+            label
+            for label in episode.concept_refs
+            if label and label not in {"default", "chat"} and not label.startswith("longmemeval")
+        ]
+
+    def _inferred_labels(self, text: str) -> list[str]:
+        normalized = normalize_text(text)
+        labels: list[str] = []
+        if any(marker in normalized for marker in ["mein name ist", "my name is", "user asked"]):
+            labels.append("user_profile")
+        if any(marker in normalized for marker in ["bevorzug", "prefer", "antwort", "answer style", "kurze antwort"]):
+            labels.append("answer_style")
+        if any(marker in normalized for marker in ["markdown", "sqlite", "sidecar", "source of truth", "canonical"]):
+            labels.append("memory_backend")
+        if any(marker in normalized for marker in ["onemem", "retrieval", "embedding", "vector", "graph"]):
+            labels.append("project_architecture")
+        if any(marker in normalized for marker in [" before ", " after ", " first ", " last ", "how many days", "date:"]):
+            labels.append("temporal_event")
+        if "longmemeval session" in normalized:
+            labels.append("benchmark_evidence")
+        return labels
+
+    def _unique(self, values: list[str]) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
+        for value in values:
+            if value not in seen:
+                seen.add(value)
+                result.append(value)
+        return result

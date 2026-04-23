@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +18,15 @@ class QueryEvalResult:
     must_contain: list[str]
     missing: list[str]
     context: str
+    score_type: str = "answer"
+    expected_source_refs: list[str] = field(default_factory=list)
+    evidence_rank: int | None = None
+    evidence_passed: bool | None = None
+
+    def scoring_rank(self) -> int | None:
+        if self.score_type == "evidence":
+            return self.evidence_rank
+        return self.rank
 
 
 @dataclass(slots=True)
@@ -38,7 +47,12 @@ class EvalReport:
     def summary(self) -> dict[str, Any]:
         total_queries = sum(len(case.queries) for case in self.cases)
         passed_queries = sum(1 for case in self.cases for query in case.queries if query.passed)
-        ranks = [query.rank for case in self.cases for query in case.queries if query.rank is not None]
+        ranks = [
+            query.scoring_rank()
+            for case in self.cases
+            for query in case.queries
+            if query.scoring_rank() is not None
+        ]
         mrr = sum(1 / rank for rank in ranks) / total_queries if total_queries else 0.0
         return {
             "path": self.path,
@@ -67,6 +81,10 @@ class EvalReport:
                             "top_k": query.top_k,
                             "must_contain": query.must_contain,
                             "missing": query.missing,
+                            "score_type": query.score_type,
+                            "expected_source_refs": query.expected_source_refs,
+                            "evidence_rank": query.evidence_rank,
+                            "evidence_passed": query.evidence_passed,
                             **({"context": query.context} if include_context else {}),
                         }
                         for query in case.queries
@@ -142,15 +160,49 @@ class EvalRunner:
                 rank = index
                 break
         missing = [expected for expected in must_contain if expected.lower() not in context.lower()]
+        expected_source_refs = [str(item) for item in query.get("expected_source_refs", [])]
+        evidence_rank = self._evidence_rank(runtime, result.memories, expected_source_refs)
+        evidence_passed = evidence_rank is not None if expected_source_refs else None
+        answer_passed = not missing and rank is not None
+        score_type = str(query.get("score", "evidence" if expected_source_refs else "answer"))
+        if score_type == "evidence":
+            passed = bool(evidence_passed)
+        elif score_type == "both":
+            passed = answer_passed and bool(evidence_passed)
+        else:
+            passed = answer_passed
         return QueryEvalResult(
             query=str(query["query"]),
-            passed=not missing and rank is not None,
+            passed=passed,
             rank=rank,
             top_k=top_k,
             must_contain=must_contain,
             missing=missing,
             context=context,
+            score_type=score_type,
+            expected_source_refs=expected_source_refs,
+            evidence_rank=evidence_rank,
+            evidence_passed=evidence_passed,
         )
+
+    def _evidence_rank(self, runtime: MemoryRuntime, memories: list[Any], expected_refs: list[str]) -> int | None:
+        if not expected_refs:
+            return None
+        expected = set(expected_refs)
+        for index, memory in enumerate(memories, start=1):
+            if self._memory_evidence_refs(runtime, memory) & expected:
+                return index
+        return None
+
+    def _memory_evidence_refs(self, runtime: MemoryRuntime, memory: Any) -> set[str]:
+        refs = {memory.id, *memory.source_refs}
+        for source_ref in memory.source_refs:
+            if source_ref.startswith("episode_"):
+                episode = runtime.store.get(source_ref)
+                if episode:
+                    refs.add(episode.id)
+                    refs.update(episode.source_refs)
+        return refs
 
     def _check_rebuild(self, runtime: MemoryRuntime, root: Path, case: dict[str, Any]) -> bool:
         sidecar = root / ".sidecar" / "index.sqlite3"
@@ -240,6 +292,11 @@ class LongMemEvalImporter:
                 {
                     "query": question,
                     "must_contain": [answer_text],
+                    "expected_source_refs": [
+                        f"longmemeval:{question_id}:{session_id}"
+                        for session_id in item.get("answer_session_ids", [])
+                    ],
+                    "score": "evidence",
                     "top_k": top_k,
                 }
             ],
@@ -287,7 +344,15 @@ def format_report(report: EvalReport) -> str:
         lines.append(f"- {case_status} {case.name}{suffix}")
         for query in case.queries:
             query_status = "PASS" if query.passed else "FAIL"
-            rank = query.rank if query.rank is not None else "-"
+            rank_value = query.scoring_rank()
+            rank = rank_value if rank_value is not None else "-"
             missing = f" missing={query.missing}" if query.missing else ""
-            lines.append(f"  - {query_status} rank={rank}@{query.top_k} query={query.query!r}{missing}")
+            evidence = ""
+            if query.expected_source_refs:
+                evidence_status = "PASS" if query.evidence_passed else "FAIL"
+                evidence = f" evidence={evidence_status}"
+            lines.append(
+                f"  - {query_status} {query.score_type}_rank={rank}@{query.top_k}"
+                f"{evidence} query={query.query!r}{missing}"
+            )
     return "\n".join(lines)
