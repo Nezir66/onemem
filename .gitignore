@@ -1,0 +1,47 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build and package outputs
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local runtime data
+memory/
+benchmarks/
+*.sqlite
+*.sqlite3
+*.db
+
+# Test and coverage outputs
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Logs and OS/editor noise
+*.log
+.DS_Store
+.idea/
+.vscode/

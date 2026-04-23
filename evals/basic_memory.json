@@ -1,0 +1,64 @@
+{
+  "name": "basic_memory",
+  "cases": [
+    {
+      "name": "profile_preference",
+      "episodes": [
+        {
+          "text": "Nezir bevorzugt kurze technische Antworten.",
+          "source": "eval",
+          "session": "profile",
+          "salience": 0.8
+        }
+      ],
+      "queries": [
+        {
+          "query": "Wie soll ich Nezir antworten?",
+          "must_contain": ["kurze technische Antworten"],
+          "top_k": 5
+        }
+      ],
+      "check_rebuild": true
+    },
+    {
+      "name": "source_of_truth",
+      "episodes": [
+        "OneMem stores canonical memory in readable Markdown files.",
+        "SQLite is only a rebuildable sidecar index for OneMem."
+      ],
+      "queries": [
+        {
+          "query": "Where is canonical memory stored?",
+          "must_contain": ["readable Markdown files"],
+          "top_k": 5
+        },
+        {
+          "query": "What is SQLite used for?",
+          "must_contain": ["rebuildable sidecar index"],
+          "top_k": 5
+        }
+      ],
+      "check_rebuild": true
+    },
+    {
+      "name": "invalidation",
+      "episodes": [
+        "The project color is green."
+      ],
+      "queries": [
+        {
+          "query": "What is the project color?",
+          "must_contain": ["green"],
+          "top_k": 5
+        }
+      ],
+      "invalidation": {
+        "query": "What is the project color?",
+        "must_contain": ["green"],
+        "top_k": 5,
+        "reason": "eval superseded fact"
+      },
+      "check_rebuild": true
+    }
+  ]
+}
