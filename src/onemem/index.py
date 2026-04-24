@@ -178,6 +178,39 @@ class SidecarIndex:
         scored.sort(key=lambda item: item[1], reverse=True)
         return scored[:limit]
 
+    def temporal_candidates(
+        self,
+        *,
+        prefer_earliest: bool = False,
+        prefer_latest: bool = False,
+        before: str | None = None,
+        after: str | None = None,
+        limit: int = 10,
+    ) -> list[sqlite3.Row]:
+        self.init()
+        clauses = ["archived = 0", "valid_from IS NOT NULL"]
+        params: list[object] = []
+        if before is not None:
+            clauses.append("valid_from <= ?")
+            params.append(before)
+        if after is not None:
+            clauses.append("valid_from >= ?")
+            params.append(after)
+        if prefer_latest or before is not None:
+            order = "DESC"
+        elif prefer_earliest or after is not None:
+            order = "ASC"
+        else:
+            order = "DESC"
+        params.append(int(limit))
+        with self.connect() as conn:
+            return list(
+                conn.execute(
+                    f"SELECT * FROM nodes WHERE {' AND '.join(clauses)} ORDER BY valid_from {order} LIMIT ?",
+                    tuple(params),
+                )
+            )
+
     def graph_neighbors(self, node_ids: list[str], hops: int = 1) -> set[str]:
         self.init()
         seen = set(node_ids)

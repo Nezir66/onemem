@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 from typing import Iterable
 
@@ -33,11 +32,12 @@ class MarkdownStore:
 
     def archive(self, node: MemoryNode) -> Path:
         current = self.find_path(node.id)
-        if current is None:
-            return self.write(node)
-        target = self.root / "archive" / node.kind / current.name
+        filename = current.name if current is not None else f"{node.id}.md"
+        target = self.root / "archive" / node.kind / filename
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(current), str(target))
+        target.write_text(serialize_node(node), encoding="utf-8")
+        if current is not None and current != target:
+            current.unlink()
         return target
 
     def read(self, path: Path) -> MemoryNode:

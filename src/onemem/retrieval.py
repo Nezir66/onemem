@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from .index import SidecarIndex
+from .temporal import TemporalIntent, detect_temporal_intent, parse_event_date
 from .text import tokenize
+
+TEMPORAL_WEIGHT = 0.12
 
 
 @dataclass(slots=True)
@@ -44,7 +47,14 @@ class RetrievalOrchestrator:
     def __init__(self, index: SidecarIndex) -> None:
         self.index = index
 
-    def retrieve(self, query: str, *, limit: int = 8, include_hypotheses: bool = False) -> RetrievalResult:
+    def retrieve(
+        self,
+        query: str,
+        *,
+        limit: int = 8,
+        include_hypotheses: bool = False,
+        reference_date: str | None = None,
+    ) -> RetrievalResult:
         candidates: dict[str, tuple[sqlite3.Row, float, float, float]] = {}
 
         for row in self.index.fts_search(self._fts_query(query), limit=30):
@@ -60,15 +70,39 @@ class RetrievalOrchestrator:
             old = candidates.get(row["id"], (row, 0.0, 0.0, 0.0))
             candidates[row["id"]] = (row, old[1], old[2], max(old[3], 0.08))
 
+        intent = detect_temporal_intent(query)
+        reference_iso = parse_event_date(reference_date) or reference_date
+        if intent.is_temporal:
+            fallback = self.index.temporal_candidates(
+                prefer_earliest=intent.prefer_earliest,
+                prefer_latest=intent.prefer_latest,
+                before=reference_iso if intent.before else None,
+                after=reference_iso if intent.after else None,
+                limit=10,
+            )
+            for row in fallback:
+                if row["id"] not in candidates:
+                    candidates[row["id"]] = (row, 0.0, 0.0, 0.0)
+        retrievable = [
+            entry for entry in candidates.values() if self._is_retrievable(entry[0], include_hypotheses)
+        ]
+        temporal_scores = self._temporal_scores(retrievable, intent, reference_iso)
         ranked = [
-            self._rank(row, lexical_score, vector_score, graph_boost)
-            for row, lexical_score, vector_score, graph_boost in candidates.values()
-            if self._is_retrievable(row, include_hypotheses)
+            self._rank(row, lexical_score, vector_score, graph_boost, temporal_scores.get(row["id"], 0.0), intent)
+            for row, lexical_score, vector_score, graph_boost in retrievable
         ]
         ranked.sort(key=lambda item: (self._kind_budget_rank(item.kind), item.score), reverse=True)
         return RetrievalResult(query=query, memories=self._apply_type_budget(ranked, limit))
 
-    def _rank(self, row: sqlite3.Row, lexical_score: float, vector_score: float, graph_boost: float) -> RankedMemory:
+    def _rank(
+        self,
+        row: sqlite3.Row,
+        lexical_score: float,
+        vector_score: float,
+        graph_boost: float,
+        temporal_score: float,
+        intent: TemporalIntent,
+    ) -> RankedMemory:
         confidence = float(row["confidence"])
         salience = float(row["salience"])
         recency = self._recency_score(row["updated_at"])
@@ -80,6 +114,7 @@ class RetrievalOrchestrator:
             + salience * 0.18
             + confidence * 0.14
             + recency * 0.08
+            + temporal_score * TEMPORAL_WEIGHT
             + pinned
         )
         return RankedMemory(
@@ -98,9 +133,58 @@ class RetrievalOrchestrator:
                 "salience": round(salience, 6),
                 "confidence": round(confidence, 6),
                 "recency": round(recency, 6),
+                "temporal_score": round(temporal_score, 6),
+                "temporal_query": intent.is_temporal,
+                "valid_from": row["valid_from"] or "",
                 "pinned": bool(row["pinned"]),
             },
         )
+
+    def _temporal_scores(
+        self,
+        entries: list[tuple[sqlite3.Row, float, float, float]],
+        intent: TemporalIntent,
+        reference_iso: str | None,
+    ) -> dict[str, float]:
+        if not intent.is_temporal:
+            return {}
+        dated: list[tuple[str, datetime]] = []
+        for row, *_ in entries:
+            vf = row["valid_from"]
+            if not vf:
+                continue
+            try:
+                dated.append((row["id"], parse_time(vf)))
+            except ValueError:
+                continue
+        if not dated:
+            return {}
+
+        reference_dt: datetime | None = None
+        if reference_iso:
+            try:
+                reference_dt = parse_time(reference_iso)
+            except ValueError:
+                reference_dt = None
+
+        if intent.before and reference_dt:
+            dated = [item for item in dated if item[1] <= reference_dt]
+        elif intent.after and reference_dt:
+            dated = [item for item in dated if item[1] >= reference_dt]
+        if not dated:
+            return {}
+
+        if intent.prefer_earliest and not intent.prefer_latest:
+            dated.sort(key=lambda item: item[1])
+        elif intent.prefer_latest and not intent.prefer_earliest:
+            dated.sort(key=lambda item: item[1], reverse=True)
+        elif reference_dt:
+            dated.sort(key=lambda item: abs((item[1] - reference_dt).total_seconds()))
+        else:
+            dated.sort(key=lambda item: item[1], reverse=True)
+
+        total = max(1, len(dated) - 1)
+        return {node_id: 1.0 - index / total for index, (node_id, _) in enumerate(dated)}
 
     def _is_retrievable(self, row: sqlite3.Row, include_hypotheses: bool) -> bool:
         if row["archived"] or row["status"] == "deprecated":

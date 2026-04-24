@@ -1,0 +1,107 @@
+{
+  "name": "temporal_basic",
+  "description": "Small deterministic temporal-retrieval regression. Evidence refs point to a single expected session per query; temporal intent + event_date should surface the right one.",
+  "cases": [
+    {
+      "name": "car_timeline_first",
+      "reference_date": "2023-06-01",
+      "episodes": [
+        {
+          "text": "I bought a new car on February 10th, 2023.",
+          "source": "bench:car:feb",
+          "session": "car_timeline",
+          "event_date": "2023-02-10",
+          "salience": 0.8
+        },
+        {
+          "text": "I took the car to the dealer for a GPS fix on March 22nd, 2023.",
+          "source": "bench:car:mar",
+          "session": "car_timeline",
+          "event_date": "2023-03-22",
+          "salience": 0.8
+        },
+        {
+          "text": "I got the car detailed on May 4th, 2023.",
+          "source": "bench:car:may",
+          "session": "car_timeline",
+          "event_date": "2023-05-04",
+          "salience": 0.8
+        }
+      ],
+      "queries": [
+        {
+          "query": "What was the first event with my car?",
+          "expected_source_refs": ["bench:car:feb"],
+          "score": "evidence",
+          "top_k": 5
+        }
+      ],
+      "check_rebuild": true
+    },
+    {
+      "name": "car_timeline_last",
+      "reference_date": "2023-06-01",
+      "episodes": [
+        {
+          "text": "I bought a new car on February 10th, 2023.",
+          "source": "bench:car:feb",
+          "session": "car_timeline",
+          "event_date": "2023-02-10",
+          "salience": 0.8
+        },
+        {
+          "text": "I took the car to the dealer for a GPS fix on March 22nd, 2023.",
+          "source": "bench:car:mar",
+          "session": "car_timeline",
+          "event_date": "2023-03-22",
+          "salience": 0.8
+        },
+        {
+          "text": "I got the car detailed on May 4th, 2023.",
+          "source": "bench:car:may",
+          "session": "car_timeline",
+          "event_date": "2023-05-04",
+          "salience": 0.8
+        }
+      ],
+      "queries": [
+        {
+          "query": "What was the most recent event with my car?",
+          "expected_source_refs": ["bench:car:may"],
+          "score": "evidence",
+          "top_k": 5
+        }
+      ],
+      "check_rebuild": true
+    },
+    {
+      "name": "meetings_before_reference",
+      "reference_date": "2024-05-15",
+      "episodes": [
+        {
+          "text": "I met Alice to kick off the migration project.",
+          "source": "bench:meet:alice",
+          "session": "meetings",
+          "event_date": "2024-04-02",
+          "salience": 0.75
+        },
+        {
+          "text": "I met Bob to review the final rollout plan.",
+          "source": "bench:meet:bob",
+          "session": "meetings",
+          "event_date": "2024-06-10",
+          "salience": 0.75
+        }
+      ],
+      "queries": [
+        {
+          "query": "Who did I meet before the reference date?",
+          "expected_source_refs": ["bench:meet:alice"],
+          "score": "evidence",
+          "top_k": 5
+        }
+      ],
+      "check_rebuild": false
+    }
+  ]
+}

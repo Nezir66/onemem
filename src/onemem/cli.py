@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .chatbot import MemoryChatbot, OpenAIResponsesClient
 from .env import load_default_env
-from .eval import EvalRunner, LongMemEvalImporter, format_report
+from .eval import EvalRunner, LongMemEvalImporter, format_report, run_write_filter_eval
 from .maintenance import MaintenanceWorker
 from .runtime import MemoryRuntime
 
@@ -32,6 +32,11 @@ def build_parser() -> argparse.ArgumentParser:
     retrieve.add_argument("--limit", type=int, default=8)
     retrieve.add_argument("--json", action="store_true")
     retrieve.add_argument("--debug", action="store_true", help="include ranking component details")
+    retrieve.add_argument(
+        "--reference-date",
+        default=None,
+        help="reference timestamp for temporal queries (ISO or LongMemEval-style)",
+    )
 
     maintain = sub.add_parser("maintain", help="run basic decay/archive maintenance")
     maintain.add_argument("--episode-ttl-days", type=int, default=30)
@@ -58,6 +63,9 @@ def build_parser() -> argparse.ArgumentParser:
     eval_import_lme.add_argument("--out", required=True)
     eval_import_lme.add_argument("--limit", type=int, default=None)
     eval_import_lme.add_argument("--top-k", type=int, default=10)
+    eval_wf = eval_sub.add_parser("write-filter", help="score MemoryWritePolicy against a labeled dataset")
+    eval_wf.add_argument("path")
+    eval_wf.add_argument("--json", action="store_true")
     return parser
 
 
@@ -95,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "retrieve":
         runtime.init()
-        result = runtime.retrieve(args.query, limit=args.limit)
+        result = runtime.retrieve(args.query, limit=args.limit, reference_date=args.reference_date)
         if args.json:
             print(json.dumps([memory.__dict__ for memory in result.memories], indent=2, sort_keys=True))
         else:
@@ -157,5 +165,22 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
+
+    if args.command == "eval" and args.eval_command == "write-filter":
+        report = run_write_filter_eval(Path(args.path))
+        if args.json:
+            print(json.dumps({"summary": report.summary(), "mistakes": report.mistakes}, indent=2))
+        else:
+            summary = report.summary()
+            print(
+                f"write-filter: {summary['correct']}/{summary['total']} "
+                f"accuracy={summary['accuracy']:.4f} mistakes={summary['mistakes']}"
+            )
+            for mistake in report.mistakes:
+                print(
+                    f"  expected={mistake['expected']} decision={mistake['decision']} "
+                    f"reason={mistake['reason']!r} text={mistake['text']!r}"
+                )
+        return 0 if report.correct == report.total else 1
 
     return 1

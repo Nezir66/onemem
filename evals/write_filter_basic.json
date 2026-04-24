@@ -1,0 +1,17 @@
+{
+  "name": "write_filter_basic",
+  "description": "Labeled messages for MemoryWritePolicy. capture=true means the turn should reach long-term memory.",
+  "messages": [
+    {"text": "Remember that I prefer short answers.", "capture": true},
+    {"text": "Merk dir: ich mag kurze Antworten.", "capture": true},
+    {"text": "Mein Name ist Nezir.", "capture": true},
+    {"text": "My name is Alex.", "capture": true},
+    {"text": "Actually, the color is green, not blue.", "capture": true},
+    {"text": "I always use the Shell station near my office.", "capture": true},
+    {"text": "ok", "capture": false},
+    {"text": "danke", "capture": false},
+    {"text": "Hi", "capture": false},
+    {"text": "yes", "capture": false},
+    {"text": "What is the weather today?", "capture": false}
+  ]
+}

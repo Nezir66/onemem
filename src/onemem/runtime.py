@@ -8,6 +8,7 @@ from .index import SidecarIndex
 from .markdown_store import MarkdownStore
 from .models import MemoryNode, utc_now
 from .retrieval import RetrievalOrchestrator, RetrievalResult
+from .temporal import parse_event_date
 from .text import stable_hash, title_from_body
 
 
@@ -27,6 +28,7 @@ class MemoryRuntime:
         source: str = "manual",
         session: str = "default",
         salience: float = 0.5,
+        event_date: str | None = None,
     ) -> MemoryNode:
         now = utc_now()
         episode_id = f"episode_{now.replace(':', '').replace('-', '').replace('Z', '')}_{stable_hash(observation, 8)}"
@@ -40,7 +42,7 @@ class MemoryRuntime:
             salience=salience,
             created_at=now,
             updated_at=now,
-            valid_from=now,
+            valid_from=_resolve_event_date(event_date, now),
             source_refs=[source],
             concept_refs=[session],
         )
@@ -60,11 +62,19 @@ class MemoryRuntime:
     def rebuild_index(self) -> None:
         self.index.rebuild(self.store)
 
-    def retrieve(self, query: str, *, limit: int = 8, include_hypotheses: bool = False) -> RetrievalResult:
+    def retrieve(
+        self,
+        query: str,
+        *,
+        limit: int = 8,
+        include_hypotheses: bool = False,
+        reference_date: str | None = None,
+    ) -> RetrievalResult:
         return RetrievalOrchestrator(self.index).retrieve(
             query,
             limit=limit,
             include_hypotheses=include_hypotheses,
+            reference_date=reference_date,
         )
 
     def invalidate(self, node_id: str, *, reason: str = "manual invalidation") -> MemoryNode:
@@ -79,3 +89,9 @@ class MemoryRuntime:
         self.store.write(node)
         self.index.upsert(node)
         return node
+
+
+def _resolve_event_date(event_date: str | None, fallback: str) -> str:
+    if not event_date:
+        return fallback
+    return parse_event_date(event_date) or event_date
