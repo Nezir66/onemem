@@ -12,6 +12,19 @@ from .text import tokenize
 
 TEMPORAL_WEIGHT = 0.12
 
+RELATION_TYPE_WEIGHTS: dict[str, float] = {
+    "supports": 1.0,
+    "contradicts": 0.9,
+    "derives_from": 0.85,
+    "summarizes": 0.8,
+    "mentions_concept": 0.7,
+    "about": 0.65,
+    "related_to": 0.5,
+    "merged_into": 0.0,
+}
+DEFAULT_RELATION_WEIGHT = 0.5
+PPR_DECAY = 0.6
+
 
 @dataclass(slots=True)
 class RankedMemory:
@@ -65,10 +78,13 @@ class RetrievalOrchestrator:
             candidates[row["id"]] = (row, old[1], max(old[2], vector_score), old[3])
 
         seed_ids = list(candidates.keys())[:12]
-        neighbor_ids = self.index.graph_neighbors(seed_ids, hops=2)
-        for row in self.index.get_rows(neighbor_ids):
+        neighbor_edges = self.index.graph_neighbor_edges(seed_ids, hops=2)
+        neighbor_boosts = self._personalized_boosts(candidates, neighbor_edges)
+        for row in self.index.get_rows(set(neighbor_edges.keys())):
             old = candidates.get(row["id"], (row, 0.0, 0.0, 0.0))
-            candidates[row["id"]] = (row, old[1], old[2], max(old[3], 0.08))
+            typed_boost = self._typed_relation_boost(row["kind"], neighbor_edges.get(row["id"], []))
+            diffused = neighbor_boosts.get(row["id"], 0.0)
+            candidates[row["id"]] = (row, old[1], old[2], max(old[3], typed_boost, diffused))
 
         intent = detect_temporal_intent(query)
         reference_iso = parse_event_date(reference_date) or reference_date
@@ -212,6 +228,42 @@ class RetrievalOrchestrator:
 
     def _kind_budget_rank(self, kind: str) -> int:
         return {"fact": 4, "episode": 3, "summary": 2, "concept": 1}.get(kind, 0)
+
+    def _relation_bonus(self, kind: str) -> float:
+        return {"fact": 0.1, "episode": 0.08, "summary": 0.06, "concept": 0.04}.get(kind, 0.04)
+
+    def _typed_relation_boost(self, kind: str, edges: list[tuple[str, float]]) -> float:
+        if not edges:
+            return self._relation_bonus(kind)
+        best = max(
+            RELATION_TYPE_WEIGHTS.get(relation_type, DEFAULT_RELATION_WEIGHT) * weight
+            for relation_type, weight in edges
+        )
+        return self._relation_bonus(kind) * best
+
+    def _personalized_boosts(
+        self,
+        seeds: dict[str, tuple[sqlite3.Row, float, float, float]],
+        neighbor_edges: dict[str, list[tuple[str, float]]],
+    ) -> dict[str, float]:
+        if not neighbor_edges:
+            return {}
+        seed_strengths: dict[str, float] = {}
+        for node_id, (_, lexical, vector, _) in seeds.items():
+            seed_strengths[node_id] = max(min(1.0, lexical), vector)
+        diffused: dict[str, float] = {}
+        for neighbor_id, edges in neighbor_edges.items():
+            if not edges:
+                continue
+            best_edge_strength = max(
+                RELATION_TYPE_WEIGHTS.get(relation_type, DEFAULT_RELATION_WEIGHT) * weight
+                for relation_type, weight in edges
+            )
+            if best_edge_strength <= 0:
+                continue
+            seed_strength = max(seed_strengths.values()) if seed_strengths else 0.0
+            diffused[neighbor_id] = PPR_DECAY * best_edge_strength * seed_strength
+        return diffused
 
     def _recency_score(self, timestamp: str) -> float:
         age_days = max(0.0, (datetime.now(UTC) - parse_time(timestamp)).total_seconds() / 86400)

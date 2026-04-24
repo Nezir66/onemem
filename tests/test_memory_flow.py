@@ -5,25 +5,14 @@ import unittest
 from pathlib import Path
 
 import onemem
-from onemem.chatbot import MemoryChatbot, build_prompt, extract_output_text
 from onemem.markdown_store import MarkdownStore
 from onemem.runtime import MemoryRuntime
 from onemem.write_policy import MemoryWritePolicy
 
 
-class FakeChatClient:
-    def __init__(self) -> None:
-        self.prompts: list[str] = []
-
-    def complete(self, prompt: str) -> str:
-        self.prompts.append(prompt)
-        return "I will remember that Nora prefers concise summaries."
-
-
 class MemoryFlowTest(unittest.TestCase):
     def test_public_package_api_exports_runtime(self) -> None:
         self.assertIs(onemem.MemoryRuntime, MemoryRuntime)
-        self.assertTrue(hasattr(onemem, "MemoryChatbot"))
         self.assertTrue(hasattr(onemem, "MemoryWritePolicy"))
 
     def test_capture_flush_retrieve_end_to_end(self) -> None:
@@ -123,33 +112,18 @@ class MemoryFlowTest(unittest.TestCase):
             self.assertNotIn("mein", concept_titles)
             self.assertIn("answer_style", fact.concept_refs)
 
-    def test_chatbot_retrieves_memory_and_captures_explicit_memory_turn(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+    def test_library_usage_does_not_read_embedding_env(self) -> None:
+        import os
+        import unittest.mock
+
+        env_overrides = {
+            "ONEMEM_EMBEDDING_PROVIDER": "gemini",
+            "GEMINI_API_KEY": "should-not-be-read",
+        }
+        with tempfile.TemporaryDirectory() as tmp, unittest.mock.patch.dict(os.environ, env_overrides):
             runtime = MemoryRuntime(Path(tmp) / "memory")
             runtime.init()
-            runtime.capture("Nora prefers concise summaries.", source="test", session="profile")
-            runtime.flush()
-            client = FakeChatClient()
-            bot = MemoryChatbot(runtime, client, auto_flush=False)
-
-            answer = bot.ask("Remember that Nora prefers concise summaries.")
-
-            self.assertIn("Nora", client.prompts[0])
-            self.assertIn("concise summaries", client.prompts[0])
-            self.assertIn("I will remember", answer)
-            episodes = runtime.store.nodes_by_kind("episode")
-            self.assertTrue(any("Assistant answered" in episode.body for episode in episodes))
-
-    def test_chatbot_ignores_low_information_turns(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            runtime = MemoryRuntime(Path(tmp) / "memory")
-            runtime.init()
-            client = FakeChatClient()
-            bot = MemoryChatbot(runtime, client, auto_flush=False)
-
-            bot.ask("ok")
-
-            self.assertEqual(runtime.store.nodes_by_kind("episode"), [])
+            self.assertEqual(runtime.index.embedding_provider.name, "hash")
 
     def test_write_policy_detects_preferences_and_noise(self) -> None:
         policy = MemoryWritePolicy()
@@ -157,31 +131,6 @@ class MemoryFlowTest(unittest.TestCase):
         self.assertTrue(policy.evaluate("Merk dir: ich mag kurze Antworten.", "").capture)
         self.assertTrue(policy.evaluate("Mein Name ist Nezir.", "").capture)
         self.assertFalse(policy.evaluate("Danke", "").capture)
-
-    def test_openai_response_text_extraction(self) -> None:
-        self.assertEqual(extract_output_text({"output_text": "hello"}), "hello")
-        self.assertEqual(
-            extract_output_text(
-                {
-                    "output": [
-                        {"content": [{"type": "output_text", "text": "hello again"}]},
-                    ]
-                }
-            ),
-            "hello again",
-        )
-
-    def test_prompt_includes_memory_and_history(self) -> None:
-        prompt = build_prompt(
-            "What now?",
-            "Memory says: vectors are candidate generators.",
-            [("user", "Hi"), ("assistant", "Hello")],
-        )
-
-        self.assertIn("vectors are candidate generators", prompt)
-        self.assertIn("user: Hi", prompt)
-        self.assertIn("What now?", prompt)
-
 
 if __name__ == "__main__":
     unittest.main()

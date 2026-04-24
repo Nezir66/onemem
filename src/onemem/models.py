@@ -6,6 +6,7 @@ from typing import Any, Literal
 
 NodeKind = Literal["episode", "fact", "concept", "summary"]
 NodeStatus = Literal["ephemeral", "candidate", "stable", "core", "deprecated", "hypothesis"]
+OperationType = Literal["ADD", "UPDATE", "MERGE", "INVALIDATE", "LINK", "PROMOTE", "DEMOTE"]
 
 
 def utc_now() -> str:
@@ -95,3 +96,24 @@ class MemoryNode:
             relations=relations,
             archived=bool(metadata.get("archived", False)),
         )
+
+
+@dataclass(slots=True)
+class MemoryOperation:
+    op: OperationType
+    node_id: str | None = None
+    node: MemoryNode | None = None
+    target_id: str | None = None
+    relation_type: str | None = None
+    relation_weight: float = 1.0
+    updates: dict[str, Any] = field(default_factory=dict)
+    reason: str = "manual operation"
+    confidence: float = 0.7
+    source_refs: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class AppliedOperation:
+    operation: MemoryOperation
+    changed_ids: list[str]
+    message: str

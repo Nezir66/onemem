@@ -31,7 +31,6 @@ Retrieval combines FTS, deterministic local vectors, graph expansion through exp
 - `SimpleConsolidator` turns episodes into long-term nodes.
 - `RetrievalOrchestrator` reads only the sidecar and builds working context.
 - `MaintenanceWorker` applies decay/archive policy and never defines truth independently of files.
-- `MemoryChatbot` is an adapter around retrieval and capture; the LLM never writes canonical long-term memory directly.
 - `onemem.adapters` is reserved for thin framework integrations. Core modules should not import agent frameworks or LLM SDKs.
 - `EvalRunner` creates isolated temporary memories and measures the lifecycle behavior expected from V1.
 - `LongMemEvalImporter` converts benchmark evidence sessions into OneMem eval cases; it does not alter core memory behavior.
