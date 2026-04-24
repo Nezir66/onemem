@@ -25,10 +25,18 @@ class MarkdownStore:
 
     def write(self, node: MemoryNode) -> Path:
         self.ensure()
-        path = self.path_for(node)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(serialize_node(node), encoding="utf-8")
-        return path
+        target = self.path_for(node)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        archive_root = self.root / "archive"
+        for existing in self.root.rglob(f"{node.id}.md"):
+            if existing == target:
+                continue
+            try:
+                existing.relative_to(archive_root)
+            except ValueError:
+                existing.unlink()
+        target.write_text(serialize_node(node), encoding="utf-8")
+        return target
 
     def archive(self, node: MemoryNode) -> Path:
         current = self.find_path(node.id)

@@ -9,6 +9,7 @@ from .env import load_default_env
 from .eval import EvalRunner, LongMemEvalImporter, format_report, run_write_filter_eval
 from .maintenance import MaintenanceWorker
 from .runtime import MemoryRuntime
+from .server import serve as serve_inspector
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,6 +51,10 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--model", default=None, help="OpenAI model; defaults to OPENAI_MODEL or gpt-5.2")
     chat.add_argument("--memory-limit", type=int, default=8)
     chat.add_argument("--no-auto-flush", action="store_true", help="capture turns without consolidating after each answer")
+
+    serve = sub.add_parser("serve", help="start the local read-only memory inspector UI")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=7070)
 
     eval_parser = sub.add_parser("eval", help="run memory quality evals")
     eval_sub = eval_parser.add_subparsers(dest="eval_command", required=True)
@@ -147,6 +152,11 @@ def main(argv: list[str] | None = None) -> int:
             if not user_message:
                 continue
             print(bot.ask(user_message))
+
+    if args.command == "serve":
+        runtime.init()
+        serve_inspector(root=Path(args.root), host=args.host, port=args.port)
+        return 0
 
     if args.command == "eval" and args.eval_command == "run":
         report = EvalRunner().run_file(Path(args.path), keep_tmp=args.keep_tmp)
